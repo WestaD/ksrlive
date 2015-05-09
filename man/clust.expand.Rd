@@ -22,7 +22,7 @@ corresponds to a pvalue of 0.05}
 substrates}
 }
 \value{
-expand_clust_list integrated clustering assignments and noclust
+expand_clust_list integrated clustering assignments
 
 noclust numeric vector of indices where a cluster could not be
 determined
@@ -34,10 +34,57 @@ determined
 The function clust.expand takes two objects created by kinclust, one
 clustered using exclusive substrates and the other one all substrates and
 expands the core found by clustering exclusive substrates using a pvalue
-threshold. The core sites will be tested for differential regulation if
-a list of differentially regulated sites is included (recommended).
+threshold. The order of both kinclust objects has to match. The core sites
+can be tested for differential regulation if a list of differentially
+regulated sites is included (recommended).
 }
 \examples{
-jjj
+data(phosphonetwork)
+# create identifier for substrate
+test_db <- do.call(paste,
+c(phosphonetwork.df[ ,c("SUB_ACC_ID.human", "MODSITE_SEQ.human")],
+sep = "_"))
+test_db <- data.frame(substrate = test_db,
+kinase = phosphonetwork.df[ ,"KIN_ACC_ID.human"],
+stringsAsFactors = FALSE)
+
+data(datalist)
+
+# create identifier in data
+nam_map <- do.call(paste,
+c(data_kin[, c("Uniprot.human", "Motif.human")], sep = "_"))
+ind_map <- match(test_db[ ,"substrate"], nam_map)
+test_db <- data.frame(test_db, data_name = rownames(data_kin)[ind_map],
+stringsAsFactors = FALSE)
+nona <- which(complete.cases(test_db))
+kin_data <- KSR.list(test_db[nona, c(3, 2)])
+fam <- list(akt = c("P31749", "P31751"))
+kin_data_fam <- KSR.list(test_db[nona, c(3, 2)], kinasefamilies = fam)
+kin_data_fam_exc <- KSR.list(test_db[nona, c(3, 2)], kinasefamilies = fam,
+ exclusive = TRUE)
+
+# get data for exclusive substrates
+scaled_ind <- grep("scaled", colnames(data_kin))
+substrate_profiles <- lapply(kin_data_fam_exc,
+                             function(x){data_kin[unlist(x), scaled_ind]})
+# can only cluster things with more than 2 profiles
+havesub2 <- which(sapply(substrate_profiles, nrow) > 2)
+
+kin_clust <- kinclust(data_list = substrate_profiles,
+nboot = 100,
+method.dist = "euclidean",
+method.hclust = "average")
+
+# get data for all substrates
+scaled_ind <- grep("scaled", colnames(data_kin))
+substrate_profiles <- lapply(kin_data_fam,
+                             function(x){data_kin[unlist(x), scaled_ind]})
+havesub <- match(names(kin_data_fam_exc)[havesub2], names(kin_data_fam))
+kin_clust_all <- kinclust(data_list = substrate_profiles[havesub],
+nboot = 100,
+method.dist = "euclidean",
+method.hclust = "average")
+
+expand_all_list <- clust.expand(kin_clust, kin_clust_all)
 }
 

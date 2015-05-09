@@ -33,7 +33,7 @@ a data frame and can combine kinase families into one list.
 data(phosphonetwork)
 test_db <- do.call(paste,
 c(phosphonetwork.df[ ,c("SUB_ACC_ID.human", "MODSITE_SEQ.human")],
-sep="_"))
+sep = "_"))
 test_db <- data.frame(substrate = test_db,
 kinase = phosphonetwork.df[ ,"KIN_ACC_ID.human"],
 stringsAsFactors = FALSE)
@@ -41,7 +41,7 @@ kin_list <- KSR.list(test_db)
 # using family lists
 fam <- list(akt = c("P31749", "P31751"),
 rsk = c("Q15418", "P23443"))
-kin.fam <- KSR.list(test_db, kinasefamilies=fam)
-kin.fam.exc <- KSR.list(test_db, kinasefamilies=fam, exclusive=TRUE)
+kin.fam <- KSR.list(test_db, kinasefamilies = fam)
+kin.fam.exc <- KSR.list(test_db, kinasefamilies = fam, exclusive = TRUE)
 }
 

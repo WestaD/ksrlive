@@ -22,6 +22,7 @@ Function most.stable takes an object created by pvclust
 \examples{
 data(mtcars)
 data <- t(mtcars)
+library(pvclust)
 result <- pvclust(data)
 mostab <- most.stable(result)
 }

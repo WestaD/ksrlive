@@ -25,6 +25,7 @@ package and transforms it into a named vector with cluster assignments.
 \examples{
 data(mtcars)
 data <- t(mtcars)
+library(pvclust)
 result <- pvclust(data)
 pvclust_pick <- pvpick(result, alpha = 0.95)
 clust_class <- pvclust.clust(pvclust_pick, data)

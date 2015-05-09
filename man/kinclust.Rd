@@ -40,6 +40,7 @@ nboot = 1000,
 method.dist = "euclidean",
 method.hclust = "average")
 
+\dontrun{
 # using a cluster
 library(parallel)
 cl <- makeCluster(detectCores())
@@ -50,5 +51,6 @@ method.dist = "euclidean",
 method.hclust = "average",
 init.rand=TRUE, iseed=21)
 stopCluster(cl)
+}
 }
 
