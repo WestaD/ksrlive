@@ -10,5 +10,8 @@ Description: Using this package you can combine known site specific
     kinases and their substrates.
 License: GPL-2 | GPL-3
 Depends: R (>= 3.2.0)
-Imports: pvclust
-Suggests: parallel
+Imports: pvclust,
+    stats
+Suggests: parallel,
+    knitr
+VignetteBuilder: knitr, ggplot2, graphics, scales
