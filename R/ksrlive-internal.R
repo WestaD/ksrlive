@@ -13,6 +13,7 @@
 #' @examples
 #' data(mtcars)
 #' data <- t(mtcars)
+#' library(pvclust)
 #' result <- pvclust(data)
 #' pvclust_pick <- pvpick(result, alpha = 0.95)
 #' clust_class <- pvclust.clust(pvclust_pick, data)
@@ -40,6 +41,7 @@ pvclust.clust <- function(pvclust_pick, data){
 #' @examples
 #' data(mtcars)
 #' data <- t(mtcars)
+#' library(pvclust)
 #' result <- pvclust(data)
 #' mostab <- most.stable(result)
 #'
@@ -51,57 +53,25 @@ most.stable <- function(result){
   return(ch_mult)
 }
 
-#' Create cluster assignment vector from pvpick object.
+#' site specific kinase substrate relationship dataset
 #'
-#' \code{pvclust.clust} returns a named vector with cluster assignments
+#' This dataset contains all site specific kinase relationships from 
+#' PhosphoSitePlus, PhosphoElm, HPRD and PhosphoPoint.
 #'
-#' Function pvclust.clust takes an object created by pvpick from the pvclust 
-#' package and transforms it into a named vector with cluster assignments.
+"phosphonetwork.df"
+
+#' Time course data for phosphorylation sites
 #'
-#' @param pvclust_pick Object created by pvclust::pvpick
-#' @param data Data used for clustering
-#' @return named vector with cluster assignments for all instances that were 
-#'clustered
+#' This dataset contains time course data of phosphorylation sites after insulin
+#' stimulation.
 #'
-#' @examples
-#' data(mtcars)
-#' data <- t(mtcars)
-#' result <- pvclust(data)
-#' pvclust_pick <- pvpick(result, alpha = 0.95)
-#' clust_class <- pvclust.clust(pvclust_pick, data)
+#' @source Humphrey et al., Cell Metabolism, 2013
+"data_kin"
+
+#' List containing time course data for phosphorylation sites
 #'
-plotlines <- function(plotnames, data, clust.class = c(1:length(plotnames)), 
-                      colors = rainbow(length(plotnames)), 
-                      scaled = TRUE, label = "none"){
-  if (scaled == TRUE) {
-    yrange <- c(0, 1)
-    ind <- grep("scaled", colnames(data))
-    plotdata <- as.matrix(data[plotnames, ind])
-    ylabel <- "scaled logfc"
-  }else{
-    ind <- grep("log2..Median", colnames(data))
-    ind <- grep("mean", colnames(data))
-    plotdata <- cbind(rep(0, length(plotnames)),
-                      as.matrix(data[plotnames, ind]))
-    colnames(plotdata)[1] <- "0_mean"
-    yrange <- range(plotdata, na.rm = TRUE)
-    ylabel <- "logfc"
-  }
-  xrange <- range(1, ncol(plotdata))
-  comp <- which(stats::complete.cases(plotdata))
-  graphics::plot(xrange, yrange, type = "n", xaxt = "n",
-                 xlab = "Time", ylab = ylabel)
-  for (i in 1:length(comp)) {
-    graphics::lines(c(1:ncol(plotdata)), plotdata[comp[i], ], type = "l",
-                    col = colors[clust.class[comp[i]]])
-    if (label == "all") {
-      mtext(side = 4, at = plotdata[comp[i], ncol(plotdata)],
-            text = data[rownames(plotdata)[comp[i]], "Gene.Name"],
-            col = colors[clust.class[comp[i]]], line = 0.3, las = 2)
-    }
-  }
-  # axis(1,at=c(1,2,3,4,5,6,7,8,9),
-  # labels=c('0','15s','30s','1min','2min','5min','10min','20min','60min'))
-  axis(1, at = c(1:ncol(plotdata)),
-       labels = sapply(strsplit(colnames(plotdata), split = "_"), "[[", 1))
-} 
+#' This dataset contains time course data of phosphorylation sites after insulin
+#' stimulation.
+#'
+#' @source Humphrey et al., Cell Metabolism, 2013
+"data_list"
