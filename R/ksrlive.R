@@ -46,34 +46,43 @@ KSR.list <- function(db, kinasefamilies = NULL, exclusive = FALSE){
   temp <- split(db[,1], f = db[,2])
   # out<-temp
   out_cl <- lapply(temp, unique) ## delete duplicates
-  # combine kinasefamilies together
-  if (is.null(kinasefamilies)) {
-    out_fam <- out_cl
+  out_cl <- lapply(out_cl, function(x){as.character(na.omit(x))}) ## delete NAs
+  # delete empty lists
+  full <- which(sapply(out_cl, function(x){length(x) > 0}))
+  if (length(full) > 0) {
+    out_cl <- out_cl[full]
+    # combine kinasefamilies together
+    if (is.null(kinasefamilies)) {
+      out_fam <- out_cl
+    }else{
+      out_fam <- lapply(kinasefamilies, 
+                        function(x){unique(unlist(out_cl[unlist(x)]))})
+      names(out_fam) <- sapply(kinasefamilies, "[[", 1)
+      
+      out_cl <- out_cl[-which(names(out_cl) %in% unlist(kinasefamilies))]
+      out_fam <- append(out_cl, out_fam)
+    }
+    if (!exclusive) {
+      out_final <- out_fam
+    }else{
+      fam_df <- data.frame(sub = unlist(out_fam), 
+                           kin = names(out_fam)[rep(seq_along(out_fam), 
+                                                    lapply(out_fam, length))],
+                           stringsAsFactors = FALSE)
+      substr <- split(fam_df[ , 2], f = fam_df[ , 1])
+      substr_cl <- lapply(substr, unique) ## delete duplicates
+      ### find exclusive substrates
+      sub_kinases <- sapply(substr_cl, length)
+      ## only one kinase
+      onekin <- which(sub_kinases == 1)
+      # twokin<-which(sub.kinases==2)
+      fam_df<-fam_df[fam_df[ , 1] %in% names(substr_cl)[onekin], ]
+      temp <- split(fam_df[ , 1], f = fam_df[ , 2])
+      out_final <- lapply(temp, unique) ## delete duplicates
+    }
   }else{
-    out_fam <- lapply(kinasefamilies, 
-                      function(x){unique(unlist(out_cl[unlist(x)]))})
-    names(out_fam) <- sapply(kinasefamilies, "[[", 1)
-    
-    out_cl <- out_cl[-which(names(out_cl) %in% unlist(kinasefamilies))]
-    out_fam <- append(out_cl, out_fam)
-  }
-  if (!exclusive) {
-    out_final <- out_fam
-  }else{
-    fam_df <- data.frame(sub = unlist(out_fam), 
-                         kin = names(out_fam)[rep(seq_along(out_fam), 
-                                                  lapply(out_fam, length))],
-                         stringsAsFactors = FALSE)
-    substr <- split(fam_df[ , 2], f = fam_df[ , 1])
-    substr_cl <- lapply(substr, unique) ## delete duplicates
-    ### find exclusive substrates
-    sub_kinases <- sapply(substr_cl, length)
-    ## only one kinase
-    onekin <- which(sub_kinases == 1)
-    # twokin<-which(sub.kinases==2)
-    fam_df<-fam_df[fam_df[ , 1] %in% names(substr_cl)[onekin], ]
-    temp <- split(fam_df[ , 1], f = fam_df[ , 2])
-    out_final <- lapply(temp, unique) ## delete duplicates
+    print("No lists available")
+    out_final <- NULL
   }
   return(out_final)
 }
@@ -84,7 +93,7 @@ KSR.list <- function(db, kinasefamilies = NULL, exclusive = FALSE){
 #' The function clust.expand takes two objects created by kinclust, one 
 #' clustered using exclusive substrates and the other one all substrates and 
 #' expands the core found by clustering exclusive substrates using a pvalue
-#' threshold. The order of both kinclust objects has to match. The core sites 
+#' threshold. The core sites 
 #' can be tested for differential regulation if a list of differentially 
 #' regulated sites is included (recommended). 
 #'
@@ -151,6 +160,9 @@ KSR.list <- function(db, kinasefamilies = NULL, exclusive = FALSE){
 
 clust.expand <- function(kin_clust, kin_clust_all, thre = 0.95,
                          index = 1:length(kin_clust[[1]]), diff_list = NULL){
+  # reorder using names
+  ord <- match(names(kin_clust[[3]]), names(kin_clust_all[[3]]))
+  kin_clust_all <- lapply(c(1:4), function(x){kin_clust_all[[x]][ord]})
   clust_class <- kin_clust[[3]]
   data <- kin_clust_all[[4]]
   expand_clust_list <- list()
@@ -264,35 +276,43 @@ clust.expand <- function(kin_clust, kin_clust_all, thre = 0.95,
 #' init.rand=TRUE, iseed=21)
 #' stopCluster(cl)
 #' }
-kinclust <- function(data_list, cl = NULL, ...){
+kinclust <- function(data, kin_list, cl = NULL, ...){
   # insert check for complete data
-  # insert check for more than 2 substrates
-  clust_class_all <- list()
-  result_all <- list()
-  mostab_all <- list()
-  data <- list()
-  #set_seed(seed)
-  for (i in 1:length(data_list)) {
-    print(i)
-    data[[i]] <- data_list[[i]]
-    data_t <- t(data[[i]])
-    if (!is.null(cl)) {
-      result_all[[i]] <- pvclust::parPvclust(cl = cl, data = data_t, 
-                                             r = seq(0.5, 1.5, by = 0.25), 
-                                             ...)
-    }else{
-      result_all[[i]] <- pvclust::pvclust(data = data_t, 
-                                          r = seq(0.5, 1.5, by = 0.25),
-                                          ...)
+  data_list <- lapply(kin_list, function(x){data[unlist(x), ]})
+  # can only cluster things with more than 2 profiles
+  havesub2 <- which(sapply(data_list, nrow) > 2)
+  if(length(havesub2) > 0) {
+    data_list <- data_list[havesub2]
+    clust_class_all <- list()
+    result_all <- list()
+    mostab_all <- list()
+    data_save <- list()
+    #set_seed(seed)
+    for (i in 1:length(data_list)) {
+      print(i)
+      data_save[[i]] <- data_list[[i]]
+      data_t <- t(data_save[[i]])
+      if (!is.null(cl)) {
+        result_all[[i]] <- pvclust::parPvclust(cl = cl, data = data_t, 
+                                               r = seq(0.5, 1.5, by = 0.25), 
+                                               ...)
+      }else{
+        result_all[[i]] <- pvclust::pvclust(data = data_t, 
+                                            r = seq(0.5, 1.5, by = 0.25),
+                                            ...)
+      }
+      mostab_all[[i]] <- ksrlive::most.stable(result_all[[i]])
+      pvclust_pick <- pvclust::pvpick(result_all[[i]], alpha = mostab_all[[i]],
+                                      pv = "au", type = "geq", max.only = TRUE)
+      clust_class_all[[i]] <- ksrlive::pvclust.clust(pvclust_pick, data_t)
     }
-    mostab_all[[i]] <- ksrlive::most.stable(result_all[[i]])
-    pvclust_pick <- pvclust::pvpick(result_all[[i]], alpha = mostab_all[[i]],
-                               pv = "au", type = "geq", max.only = TRUE)
-    clust_class_all[[i]] <- ksrlive::pvclust.clust(pvclust_pick, data_t)
+    names(clust_class_all) <- names(data_list)
+  }else{
+    print("Not enough substrates for clustering, please ensure that more than two 
+          substrates are available.")
   }
-  names(clust_class_all) <- names(data_list)
-
+  
   outlist <- list(result = result_all, most_stable = mostab_all,
-                clustering = clust_class_all, data = data)
+                  clustering = clust_class_all, data = data_save)
   return(outlist)
 }
