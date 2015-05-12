@@ -2,54 +2,97 @@
 % Please edit documentation in R/ksrlive.R
 \name{kinclust}
 \alias{kinclust}
-\title{Do pvclust clustering for data in list}
+\title{Perform clustering}
 \usage{
-kinclust(data_list, cl = NULL, ...)
+kinclust(data, kin_list, cl = NULL, ...)
 }
 \arguments{
-\item{data_list}{list containing time course data for substrates of a kinase
+\item{data}{data frame containing time course data for substrates of a kinase
 where rows correspond to substrates and a column to the observation at a
 time point}
 
+\item{kin_list}{list of kinase substrate relationships}
+
 \item{cl}{cluster object created by the parallel package}
 
-\item{...}{arguments used in pvclust}
+\item{...}{arguments to be passed to pvclust}
 }
 \value{
-result list of pvclust objects
-
-most_stable list of aus used for cluster determination
-
-clustering list of named vectors with cluster assignment
-
-data list of data frames used for clustering
+Returned value is a list. The first element is a list of pvclust objects.
+The second is a list of au cut offs used for the cluster assignment. The third
+is a list of cluster assignments and the fourth is a list of data frames used for
+clustering.
 }
 \description{
-\code{kinclust} returns list of clustering results for a given kinase
-substrate list
+\code{kinclust} performs clustering using pvclust.
 }
 \details{
-This is the main function of the package. The function kinclust takes a list of kinase substrate relationships,
-runs clustering using pvclust on every list and returns a list with
-the resulting pvclust objects and cluster assignments.
+The function kinclust takes data and a list of kinase substrate relationships
+and performs bootstrap clustering using pvclust on every data list.
+}
+\note{
+Substrate identifiers in the kinase substrate relationship list have to
+correspond to data substrate identifiers.
 }
 \examples{
+data(phosphonetwork)
 data(datalist)
-kin_clust <- kinclust(data_list = data_list,
-nboot = 1000,
-method.dist = "euclidean",
-method.hclust = "average")
+# create identifier for substrate in database
+test_db <- do.call(paste,
+                   c(phosphonetwork.df[ ,c("SUB_ACC_ID.human", "MODSITE_SEQ.human")],
+                     sep = "_"))
+test_db <- data.frame(substrate = test_db,
+                      kinase = phosphonetwork.df[ ,"KIN_ACC_ID.human"],
+                      stringsAsFactors = FALSE)
+
+# create identifier for substrate in data
+nam_map <- do.call(paste,
+                   c(data_kin[, c("Uniprot.human", "Motif.human")], sep = "_"))
+ind_map <- match(test_db[ ,"substrate"], nam_map)
+test_db <- data.frame(test_db, data_name = rownames(data_kin)[ind_map],
+                      stringsAsFactors = FALSE)
+# first column has to be substrate id, second kinase id
+kin_data <- KSR.list(test_db[, c(3, 2)])
+# Akt1 and Akt2 belong to the same kinase family, combine their substrates
+# into one list and name the list after the first family member
+fam <- list(akt = c("P31749", "P31751"))
+kin_data_fam <- KSR.list(test_db[, c(3, 2)], kinasefamilies = fam)
+
+# only include phosphosites appearing once
+kin_data_fam_exc <- KSR.list(test_db[, c(3, 2)], kinasefamilies = fam,
+                             exclusive = TRUE)
+
+scaled_ind <- grep("scaled", colnames(data_kin))
+
+# clustering using exclusive substrates
+kin_clust <- kinclust(data = data_kin[ , scaled_ind],
+                      kin_list = kin_data_fam_exc,
+                      nboot = 100,
+                      method.dist = "euclidean",
+                      method.hclust = "average")
+
+# clustering using all substrates
+kin_clust_all <- kinclust(data = data_kin[ , scaled_ind],
+                          kin_list = kin_data_fam,
+                          nboot = 100,
+                          method.dist = "euclidean",
+                          method.hclust = "average")
 
 \dontrun{
 # using a cluster
+# example using parallel computing
 library(parallel)
-cl <- makeCluster(detectCores())
-kin_clust <- kinclust(data_list = data_list,
-cl = cl,
-nboot = 1000,
-method.dist = "euclidean",
-method.hclust = "average",
-init.rand=TRUE, iseed=21)
+corenumber <- detectCores()
+corenumber
+cl <- makeCluster(corenumber)
+kin_clust_all <- kinclust(data = data_kin[ , scaled_ind],
+                          kin_list = kin_data_fam,
+                          cl = cl,
+                          nboot = 100,
+                          method.dist = "euclidean",
+                          method.hclust = "average",
+                          init.rand = TRUE,
+                          iseed = 21)
 stopCluster(cl)
 }
 }

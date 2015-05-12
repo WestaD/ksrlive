@@ -2,18 +2,16 @@
 % Please edit documentation in R/ksrlive.R
 \name{KSR.list}
 \alias{KSR.list}
-\title{Create a kinase substrate list from a data frame}
+\title{Create a kinase substrate relationship list from a data frame}
 \usage{
 KSR.list(db, kinasefamilies = NULL, exclusive = FALSE)
 }
 \arguments{
 \item{db}{data frame of kinase substrate relationships with substrate
-identifier in the first column and kinase identifier in the second column.
-Data base substrate/kinase identifiers should correspond to data
-substrate/kinase identifiers.}
+identifier in the first column and kinase identifier in the second column.}
 
 \item{kinasefamilies}{list of kinase identifiers that have to be combined,
-one list per kinase family}
+one list per kinase family, list will be named after first family member}
 
 \item{exclusive}{logical, if TRUE only substrates exclusive to the kinase
 will be included in the list}
@@ -23,25 +21,39 @@ list with kinase substrate relationships, with the kinase
 identifiers as the list names
 }
 \description{
-\code{KSR.list} returns list of kinase substrate relationships
+\code{KSR.list} returns a list of kinase substrate relationships
 }
 \details{
 The function KSR.list creates a list of kinase substrate relationships from
-a data frame and can combine kinase families into one list.
+a data frame and can combine kinase families into one list. Substrates occuring
+in multiple lists can be deleted.
 }
 \examples{
 data(phosphonetwork)
+data(datalist)
+# create identifier for substrate in database
 test_db <- do.call(paste,
-c(phosphonetwork.df[ ,c("SUB_ACC_ID.human", "MODSITE_SEQ.human")],
-sep = "_"))
+                   c(phosphonetwork.df[ ,c("SUB_ACC_ID.human", "MODSITE_SEQ.human")],
+                     sep = "_"))
 test_db <- data.frame(substrate = test_db,
-kinase = phosphonetwork.df[ ,"KIN_ACC_ID.human"],
-stringsAsFactors = FALSE)
-kin_list <- KSR.list(test_db)
-# using family lists
-fam <- list(akt = c("P31749", "P31751"),
-rsk = c("Q15418", "P23443"))
-kin.fam <- KSR.list(test_db, kinasefamilies = fam)
-kin.fam.exc <- KSR.list(test_db, kinasefamilies = fam, exclusive = TRUE)
+                      kinase = phosphonetwork.df[ ,"KIN_ACC_ID.human"],
+                      stringsAsFactors = FALSE)
+
+# create identifier for substrate in data
+nam_map <- do.call(paste,
+                   c(data_kin[, c("Uniprot.human", "Motif.human")], sep = "_"))
+ind_map <- match(test_db[ ,"substrate"], nam_map)
+test_db <- data.frame(test_db, data_name = rownames(data_kin)[ind_map],
+                      stringsAsFactors = FALSE)
+
+kin_data <- KSR.list(test_db[, c(3, 2)])
+# Akt1 and Akt2 belong to the same kinase family, combine their substrates
+# into one list and name the list after the first family member
+fam <- list(akt = c("P31749", "P31751"))
+kin_data_fam <- KSR.list(test_db[, c(3, 2)], kinasefamilies = fam)
+
+# only include phosphosites appearing once
+kin_data_fam_exc <- KSR.list(test_db[, c(3, 2)], kinasefamilies = fam,
+                             exclusive = TRUE)
 }
 

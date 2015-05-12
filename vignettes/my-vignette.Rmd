@@ -9,7 +9,9 @@ vignette: >
   \usepackage[utf8]{inputenc}
 ---
 
-## Load data
+Using this package you can combine known site specific kinase substrate relationships with dynamic experimental data and determine active kinases and their substrates.
+
+## Data in this package
 
 This package contains a part of the phosphoproteomics data from 
 [Humphrey *et al.*, Cell Metabolism, 2013](http://dx.doi.org/10.1016/j.cmet.2013.04.010).   
@@ -67,12 +69,8 @@ exclusive = TRUE)
 ```
 
 ## Cluster exclusive and all substrates
-Data dependent clustering can be performed using the function kinclust. The data 
-has to be in the format where rows correspond to observations and columns to samples
- (e.g. time points). It is recommended that the clustering is run with nboot set 
- to at least 10000. Given a cluster object the clustering can be performed in 
- parallel. 
-```{r clustering, cache = TRUE, message = FALSE, comment = FALSE}
+Data dependent clustering can be performed using the function kinclust. The tightest cluster for a kinase forms the core substrates. In a second step clustering using all available substrates for a kinase can be performed. The data has to be in the format where rows correspond to observations and columns to samples (e.g. time points). It is recommended that the clustering is run with nboot set to at least 10000. Given a cluster object the clustering can be performed in parallel. 
+```{r clustering, cache = TRUE, message = FALSE, results = "hide"}
 scaled_ind <- grep("scaled", colnames(data_kin))
 
 # clustering using exclusive substrates
@@ -82,25 +80,29 @@ kin_clust <- kinclust(data = data_kin[ , scaled_ind],
                       method.dist = "euclidean",
                       method.hclust = "average")
 
+# only need to cluster what was clustered using exclusive list
+only <- match(names(kin_data_fam_exc), names(kin_data_fam))
 # clustering using all substrates
 kin_clust_all <- kinclust(data = data_kin[ , scaled_ind],
-                          kin_list = kin_data_fam,
+                          kin_list = kin_data_fam[only],
                           nboot = 1000,
                           method.dist = "euclidean",
                           method.hclust = "average")
 
 # example using parallel computing
-library(parallel)
-corenumber <- detectCores()
-corenumber
-cl <- makeCluster(corenumber)
-kin_clust_all <- kinclust(data = data_kin[ , scaled_ind],
-                          kin_list = kin_data_fam,
-                          cl = cl,
-                          nboot = 10000,
-                          method.dist = "euclidean",
-                          method.hclust = "average")
-stopCluster(cl)
+#library(parallel)
+#corenumber <- detectCores()
+#corenumber
+#cl <- makeCluster(corenumber)
+#kin_clust_all <- kinclust(data = data_kin[ , scaled_ind],
+#                          kin_list = kin_data_fam,
+#                          cl = cl,
+#                          nboot = 100,
+#                          method.dist = "euclidean",
+#                          method.hclust = "average",
+#                          init.rand = TRUE,
+#                          iseed = 21)
+#stopCluster(cl)
 ```
 
 A dendrogram and line graphs of the clustering can be displayed. (Additional packages needed)
@@ -124,7 +126,7 @@ clust_long <- as.factor(unlist(lapply(clust, rep, ncol(kin_clust[["data"]][[1]])
 plotdata_long <- cbind(plotdata_long, cluster = clust_long)
 ggplot(plotdata_long, 
             aes(x = time, y = value, colour = cluster, group = variable)) + 
-      scale_color_manual(values = c("lightblue", "red")) +
+      scale_color_manual(values = c("lightblue", "red", "purple", "green")) +
       xlab("Time") +
       ylab("scaled logfc") +
       scale_x_discrete(limit = c(1:9),
@@ -133,49 +135,48 @@ ggplot(plotdata_long,
 ```
 
 ## Integrate exclusive clustering and all substrate clustering
-The tightest cluster for a kinase formed the core substrates. The core substrates were also tested for differential regulation using a 1.5 fold change cut off in two out of three replicates. In a second step clustering was performed using all available substrates for a kinase and the cluster containing the core substrates was taken as the characteristic temporal response for the kinase. The cut off p value for the clusters was set to 0.05. Differentially regulated substrates in the characteristic temporal response formed the automatic training set of the kinase.
+To integrate the clustering using exclusive and all substrates the function clust.expand 
+finds which cluster the core substrates from the exclusive clustering fall in the 
+clustering performed using all substrates. The cluster containing the core substrates
+forms the characteristic temporal response of the kinase. A cut off p value for the clustering can be set and it is recommended to provide a list of differentially regulated substrates. This list will be used to test core substrates for differential regulation. 
+
 ```{r integrate-clustering}
 expand_all_list <- clust.expand(kin_clust, kin_clust_all)
-```
-----------------------------------------------------------------------
-
-
-Vignettes are long form documentation commonly included in packages. Because they are part of the distribution of the package, they need to be as compact as possible. The `html_vignette` output type provides a custom style sheet (and tweaks some options) to ensure that the resulting html is as small as possible. The `html_vignette` format:
-
-- Never uses retina figures
-- Has a smaller default figure size
-- Uses a custom CSS stylesheet instead of the default Twitter Bootstrap style
-
-## Vignette Info
-
-Note the various macros within the `vignette` setion of the metadata block above. These are required in order to instruct R how to build the vignette. Note that you should change the `title` field and the `\VignetteIndexEntry` to match the title of your vignette.
-
-## Styles
-
-The `html_vignette` template includes a basic CSS theme. To override this theme you can specify your own CSS in the document metadata as follows:
-
-    output: 
-      rmarkdown::html_vignette:
-        css: mystyles.css
-
-You can enable figure captions by `fig_caption: yes` in YAML:
-
-    output:
-      rmarkdown::html_vignette:
-        fig_caption: yes
-
-Then you can use the chunk option `fig.cap = "Your figure caption."` in **knitr**.
-
-## More Examples
-
-You can write math expressions, e.g. $Y = X\beta + \epsilon$, footnotes^[A footnote here.], and tables, e.g. using `knitr::kable()`.
-
-```{r, echo=FALSE, results='asis'}
-knitr::kable(head(mtcars, 10))
+expand_all <- expand_all_list[[1]]
 ```
 
-Also a quote using `>`:
+Plot final clustering
+```{r plot-cluster, fig.width = 7, fig.height = 6}
+i = 1
+library(ggplot2)
+library(reshape2)
+plotdata <- data.frame(time = c(1:length(scaled_ind)), t(data_kin[names(expand_all[[i]]), scaled_ind]))
+plotdata_long <- melt(plotdata, id = "time")  # convert to long format
+clust <- expand_all[[i]]
+clust_long <- as.factor(unlist(lapply(clust, rep, length(scaled_ind))))
+plotdata_long <- cbind(plotdata_long, cluster = clust_long)
+ggplot(plotdata_long, 
+            aes(x = time, y = value, colour = cluster, group = variable)) + 
+      scale_color_manual(values = c("lightblue", "red", "purple", "green")) +
+      xlab("Time") +
+      ylab("scaled logfc") +
+      scale_x_discrete(limit = c(1:9),
+                     labels = timelab) +
+      geom_line()
+```
 
-> "He who gives up [code] safety for [code] speed deserves neither."
-([via](https://twitter.com/hadleywickham/status/504368538874703872))
+This will plot the cluster mean and standard deviation as a ribbon. 
 
+```{r ribbon-plot, fig.width = 7, fig.height = 6}
+plotstat <- data.frame(time = c(1:length(scaled_ind)), t(data_kin[names(expand_all[[i]])[which(expand_all[[i]] == 1)], scaled_ind]))
+plotstat$mean <- apply(plotstat[ , 2:ncol(plotstat)], 1, mean)
+plotstat$sd <- apply(plotstat[ , 2:ncol(plotstat)], 1, sd)
+colors <- c("orange")
+ggplot(plotstat, aes(x = time, y = mean)) + 
+  geom_line(size = 1, color = colors[1]) + 
+      xlab("Time") +
+      ylab("scaled logfc") +
+      scale_x_discrete(limit = c(1:9),
+                     labels = timelab) +
+   geom_ribbon(aes(ymax = mean + sd, ymin = mean - sd), color = colors[1], fill = colors[1], alpha = 0.5)
+```

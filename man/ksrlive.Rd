@@ -7,7 +7,7 @@
 \title{Identify site specific kinase substrate relationships using dynamic data.}
 \description{
 Using this package you can combine known site specific
-kinase substrate relationships with experimental data and determine active
+kinase substrate relationships with dynamic experimental data and determine active
 kinases and their substrates.
 }
 \author{
