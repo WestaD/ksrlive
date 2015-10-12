@@ -249,26 +249,22 @@ clust.expand <- function(kin_clust, kin_clust_all, thre = 0.95,
   return(outlist)
 }
 
-#' Perform clustering
+#' Create a kinase substrate relationship list from a data frame
 #'
-#' \code{kinclust} performs clustering using pvclust.
+#' \code{KSR.list} returns a list of kinase substrate relationships
 #'
-#' The function kinclust takes data and a list of kinase substrate relationships 
-#' and performs bootstrap clustering using pvclust on every data list. 
+#' The function KSR.list creates a list of kinase substrate relationships from
+#' a data frame and can combine kinase families into one list. Substrates occuring 
+#' in multiple lists can be deleted. 
 #'
-#' @param data data frame containing time course data for substrates of a kinase 
-#' where rows correspond to substrates and a column to the observation at a 
-#' time point
-#' @param kin_list list of kinase substrate relationships
-#' @param cl cluster object created by the parallel package
-#' @param ... arguments to be passed to pvclust
-#' @return Returned value is a list. The first element is a list of pvclust objects.
-#' The second is a list of au cut offs used for the cluster assignment. The third
-#' is a list of cluster assignments and the fourth is a list of data frames used for 
-#' clustering. 
-#' 
-#' @note Substrate identifiers in the kinase substrate relationship list have to 
-#' correspond to data substrate identifiers.
+#' @param db data frame of kinase substrate relationships with substrate 
+#' identifier in the first column and kinase identifier in the second column.
+#' @param kinasefamilies list of kinase identifiers that have to be combined, 
+#' one list per kinase family, list will be named after first family member
+#' @param exclusive logical, if TRUE only substrates exclusive to the kinase
+#' will be included in the list 
+#' @return list with kinase substrate relationships, with the kinase
+#' identifiers as the list names
 #'
 #' @examples
 #' data(phosphonetwork)
@@ -287,7 +283,8 @@ clust.expand <- function(kin_clust, kin_clust_all, thre = 0.95,
 #' ind_map <- match(test_db[ ,"substrate"], nam_map)
 #' test_db <- data.frame(test_db, data_name = rownames(data_kin)[ind_map],
 #'                       stringsAsFactors = FALSE)
-#' # first column has to be substrate id, second kinase id
+#'                       
+# first column has to be substrate id, second kinase id
 #' kin_data <- KSR.list(test_db[, c(3, 2)]) 
 #' # Akt1 and Akt2 belong to the same kinase family, combine their substrates 
 #' # into one list and name the list after the first family member
@@ -297,78 +294,212 @@ clust.expand <- function(kin_clust, kin_clust_all, thre = 0.95,
 #' # only include phosphosites appearing once
 #' kin_data_fam_exc <- KSR.list(test_db[, c(3, 2)], kinasefamilies = fam,
 #'                              exclusive = TRUE)
-#'                              
-#' scaled_ind <- grep("scaled", colnames(data_kin))
-#' 
-#' # clustering using exclusive substrates
-#' kin_clust <- kinclust(data = data_kin[ , scaled_ind],
-#'                       kin_list = kin_data_fam_exc,
-#'                       nboot = 100,
-#'                       method.dist = "euclidean",
-#'                       method.hclust = "average")
-#' 
-#' # clustering using all substrates
-#' kin_clust_all <- kinclust(data = data_kin[ , scaled_ind],
-#'                           kin_list = kin_data_fam,
-#'                           nboot = 100,
-#'                           method.dist = "euclidean",
-#'                           method.hclust = "average")
-#'
-#'\dontrun{
-#' # using a cluster
-#' # example using parallel computing
-#' library(parallel)
-#' corenumber <- detectCores()
-#' corenumber
-#' cl <- makeCluster(corenumber)
-#' kin_clust_all <- kinclust(data = data_kin[ , scaled_ind],
-#'                           kin_list = kin_data_fam,
-#'                           cl = cl,
-#'                           nboot = 100,
-#'                           method.dist = "euclidean",
-#'                           method.hclust = "average",
-#'                           init.rand = TRUE,
-#'                           iseed = 21)
-#' stopCluster(cl)
-#' }
 
-kinclust <- function(data, kin_list, cl = NULL, ...){
-  # insert check for complete data
-  data_list <- lapply(kin_list, function(x){data[unlist(x), ]})
-  # can only cluster things with more than 2 profiles
-  havesub2 <- which(sapply(data_list, nrow) > 2)
-  if(length(havesub2) > 0) {
-    data_list <- data_list[havesub2]
-    clust_class_all <- list()
-    result_all <- list()
-    mostab_all <- list()
-    data_save <- list()
-    #set_seed(seed)
-    for (i in 1:length(data_list)) {
-      print(i)
-      data_save[[i]] <- data_list[[i]]
-      data_t <- t(data_save[[i]])
-      if (!is.null(cl)) {
-        result_all[[i]] <- pvclust::parPvclust(cl = cl, data = data_t, 
-                                               r = seq(0.5, 1.5, by = 0.25), 
-                                               ...)
+
+### add random data
+random.data <- function(data, back_data = NULL, n = 50, random.seed = NULL){
+      if(n <= nrow(data)){
+            n <- 0
+            message("Data has more observations than given maximum.")
+            return(NULL)
       }else{
-        result_all[[i]] <- pvclust::pvclust(data = data_t, 
-                                            r = seq(0.5, 1.5, by = 0.25),
-                                            ...)
+            if(!is.null(back_data)){
+                  indata <- match(rownames(data), rownames(back_data))
+                  back_data <- back_data[-indata, ]
+                  if(!is.null(random.seed)){
+                        set.seed(random.seed)
+                  }
+                  random_data <- back_data[sample(rownames(back_data), n - nrow(data)), ]
+                  rownames(random_data) <- paste(rownames(random_data), rep("_random", nrow(random_data)), sep = "")
+            }else{
+                  if(!is.null(random.seed)){
+                        set.seed(random.seed)
+                  }
+                  random_data <- t(replicate(n-nrow(data), runif(ncol(data), min = min(data), max = max(data))))
+                  rownames(random_data) <- paste(c(1:nrow(random_data)), rep("_random", nrow(random_data)), sep = "")
+                  colnames(random_data) <- colnames(data)
+            }
+            return(random_data)
       }
-      mostab_all[[i]] <- ksrlive::most.stable(result_all[[i]])
-      pvclust_pick <- pvclust::pvpick(result_all[[i]], alpha = mostab_all[[i]],
-                                      pv = "au", type = "geq", max.only = TRUE)
-      clust_class_all[[i]] <- ksrlive::pvclust.clust(pvclust_pick, data_t)
-    }
-    names(clust_class_all) <- names(data_list)
-  }else{
-    print("Not enough substrates for clustering, please ensure that more than two 
-          substrates are available.")
-  }
-  
-  outlist <- list(result = result_all, most_stable = mostab_all,
-                  clustering = clust_class_all, data = data_save)
-  return(outlist)
+}
+
+#' Create a kinase substrate relationship list from a data frame
+#'
+#' \code{KSR.list} returns a list of kinase substrate relationships
+#'
+#' The function KSR.list creates a list of kinase substrate relationships from
+#' a data frame and can combine kinase families into one list. Substrates occuring 
+#' in multiple lists can be deleted. 
+#'
+#' @param db data frame of kinase substrate relationships with substrate 
+#' identifier in the first column and kinase identifier in the second column.
+#' @param kinasefamilies list of kinase identifiers that have to be combined, 
+#' one list per kinase family, list will be named after first family member
+#' @param exclusive logical, if TRUE only substrates exclusive to the kinase
+#' will be included in the list 
+#' @return list with kinase substrate relationships, with the kinase
+#' identifiers as the list names
+#'
+#' @examples
+#' data(phosphonetwork)
+#' data(datalist)
+#' # create identifier for substrate in database
+#' test_db <- do.call(paste, 
+#'                    c(phosphonetwork.df[ ,c("SUB_ACC_ID.human", "MODSITE_SEQ.human")],
+#'                      sep = "_"))
+#' test_db <- data.frame(substrate = test_db, 
+#'                       kinase = phosphonetwork.df[ ,"KIN_ACC_ID.human"], 
+#'                       stringsAsFactors = FALSE)
+#' 
+#' # create identifier for substrate in data
+#' nam_map <- do.call(paste, 
+#'                    c(data_kin[, c("Uniprot.human", "Motif.human")], sep = "_"))
+#' ind_map <- match(test_db[ ,"substrate"], nam_map)
+#' test_db <- data.frame(test_db, data_name = rownames(data_kin)[ind_map],
+#'                       stringsAsFactors = FALSE)
+#'                       
+# first column has to be substrate id, second kinase id
+#' kin_data <- KSR.list(test_db[, c(3, 2)]) 
+#' # Akt1 and Akt2 belong to the same kinase family, combine their substrates 
+#' # into one list and name the list after the first family member
+#' fam <- list(akt = c("P31749", "P31751"))
+#' kin_data_fam <- KSR.list(test_db[, c(3, 2)], kinasefamilies = fam)
+#' 
+#' # only include phosphosites appearing once
+#' kin_data_fam_exc <- KSR.list(test_db[, c(3, 2)], kinasefamilies = fam,
+#'                              exclusive = TRUE)
+
+
+clustering <- function(tightclust, data){
+      clustnum <- unique(tightclust$cluster)
+      clustnum <- clustnum[-which(clustnum == -1)]
+      clust <- lapply(c(1:length(clustnum)), function(x){which(tightclust$cluster == x)})
+      
+      ### delete all clusters that are only random data
+      cluster <- lapply(clust, function(x){
+            as.character(na.omit(rownames(data)[x]))
+      })
+      big <- which(sapply(cluster, length) > 1)
+      ### create cluster assignment vector
+      clust_assg <- numeric(length = nrow(data))
+      names(clust_assg) <- rownames(data)
+      if(length(big) > 0){
+            for(i in 1:length(big)){
+                  clust_assg[cluster[[big[i]]]] <- i
+            }
+      }else{
+            message("Does not have a cluster.")
+      }
+      return(clust_assg)
+}
+
+#' Create a kinase substrate relationship list from a data frame
+#'
+#' \code{KSR.list} returns a list of kinase substrate relationships
+#'
+#' The function KSR.list creates a list of kinase substrate relationships from
+#' a data frame and can combine kinase families into one list. Substrates occuring 
+#' in multiple lists can be deleted. 
+#'
+#' @param db data frame of kinase substrate relationships with substrate 
+#' identifier in the first column and kinase identifier in the second column.
+#' @param kinasefamilies list of kinase identifiers that have to be combined, 
+#' one list per kinase family, list will be named after first family member
+#' @param exclusive logical, if TRUE only substrates exclusive to the kinase
+#' will be included in the list 
+#' @return list with kinase substrate relationships, with the kinase
+#' identifiers as the list names
+#'
+#' @examples
+#' data(phosphonetwork)
+#' data(datalist)
+#' # create identifier for substrate in database
+#' test_db <- do.call(paste, 
+#'                    c(phosphonetwork.df[ ,c("SUB_ACC_ID.human", "MODSITE_SEQ.human")],
+#'                      sep = "_"))
+#' test_db <- data.frame(substrate = test_db, 
+#'                       kinase = phosphonetwork.df[ ,"KIN_ACC_ID.human"], 
+#'                       stringsAsFactors = FALSE)
+#' 
+#' # create identifier for substrate in data
+#' nam_map <- do.call(paste, 
+#'                    c(data_kin[, c("Uniprot.human", "Motif.human")], sep = "_"))
+#' ind_map <- match(test_db[ ,"substrate"], nam_map)
+#' test_db <- data.frame(test_db, data_name = rownames(data_kin)[ind_map],
+#'                       stringsAsFactors = FALSE)
+#'                       
+# first column has to be substrate id, second kinase id
+#' kin_data <- KSR.list(test_db[, c(3, 2)]) 
+#' # Akt1 and Akt2 belong to the same kinase family, combine their substrates 
+#' # into one list and name the list after the first family member
+#' fam <- list(akt = c("P31749", "P31751"))
+#' kin_data_fam <- KSR.list(test_db[, c(3, 2)], kinasefamilies = fam)
+#' 
+#' # only include phosphosites appearing once
+#' kin_data_fam_exc <- KSR.list(test_db[, c(3, 2)], kinasefamilies = fam,
+#'                              exclusive = TRUE)
+
+clust.expand <- function(clust, clust_all, diff_list = NULL){
+      # find all possible cluster cores
+      imp_clu <- names(table(clust))
+      if(any(imp_clu == 0)){
+            imp_clu <- imp_clu[-which(imp_clu == 0)]
+      }
+      clust_mem <- lapply(imp_clu, function(x){
+            names(clust)[which(clust == as.numeric(x))]
+      })
+      # if any cluster member is not in a cluster when clustering all
+      # then remove it from the member list
+      if (any(clust_all[unlist(clust_mem)] == 0)) {
+            ind <- lapply(clust_mem, function(x){
+                  which(clust_all[x] == 0)
+            })
+            clust_mem <- lapply(c(1:length(ind)), function(x){
+                  if (length(ind[[x]]) != 0){
+                        clust_mem[[x]][-ind[[x]]]
+                  }else{
+                        clust_mem[[x]]
+                  }
+            })
+      }
+      
+      # test whether the core is differentially regulated
+      if (!is.null(diff_list)) {
+            if (any(!(unlist(clust_mem) %in% diff_list))) {
+                  ind <- lapply(clust_mem, function(x){
+                        which(!(unlist(x) %in% diff_list))
+                  })
+                  clust_mem <- lapply(c(1:length(ind)), function(x){
+                        if (length(ind[[x]]) != 0) {
+                              clust_mem[[x]][-ind[[x]]]
+                        }else{
+                              clust_mem[[x]]
+                        }
+                  })
+            }
+      }
+      # if no cluster found
+      if (all(sapply(clust_mem, length) == 0)) {
+            message("Does not have a cluster")
+            expand_clust <- NA
+      }else{
+            expand <- lapply(clust_mem, function(x){
+                  clust_all[unlist(x)]
+            })
+            expand_t <- lapply(expand, table)
+            cluster <- lapply(expand_t, function(x){as.numeric(names(unlist(x)))})
+            expand_clust <- clust_all
+            expand_clust[! (expand_clust %in% unlist(cluster))] <- 0
+            hascl <- which(sapply(cluster, length) > 0)
+            clustnum_vec <- c(1:length(hascl))
+            clust_ind <- list()
+            for(i in 1:length(hascl)){
+                  clust_ind[[i]] <- which(expand_clust %in% cluster[[hascl[i]]])
+            }
+            for(i in 1:length(clust_ind)){
+                  expand_clust[clust_ind[[i]]] <- clustnum_vec[i]
+            }
+            
+      }
+      return(expand_clust)
 }
