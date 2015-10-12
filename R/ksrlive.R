@@ -501,7 +501,6 @@ clust.expand <- function(clust, clust_all, diff_list = NULL){
             }
             
       }
-<<<<<<< HEAD
       mostab_all[[i]] <- ksrlive::most.stable(result_all[[i]])
       pvclust_pick <- pvclust::pvpick(result_all[[i]], alpha = mostab_all[[i]],
                                       pv = "au", type = "geq", max.only = TRUE)
