@@ -169,13 +169,13 @@ KSR.list <- function(db, kinasefamilies = NULL, exclusive = FALSE){
 #' expand_all_list <- clust.expand(kin_clust, kin_clust_all)
 #' expand_all <- expand_all_list$expand_clust_list
 
-clust.expand <- function(kin_clust, kin_clust_all, thre = 0.95,
-                         index = 1:length(kin_clust[[1]]), diff_list = NULL){
+clust.expand <- function(kin_clust, kin_clust_all, thre = 0.95, 
+                         diff_list = NULL){
   # reorder using names
-  ord <- match(names(kin_clust[[3]]), names(kin_clust_all[[3]]))
-  kin_clust_all <- lapply(c(1:4), function(x){kin_clust_all[[x]][ord]})
-  clust_class <- kin_clust[[3]]
-  data <- kin_clust_all[[4]]
+  ord <- match(names(kin_clust), names(kin_clust_all))
+  kin_clust_all <- kin_clust_all[ord]
+  clust_class <- lapply(kin_clust, "[[", 3)
+  data <- lapply(kin_clust, "[[", 4)
   expand_clust_list <- list()
   noclust <- numeric()
   for (i in 1:length(clust_class)) {
@@ -185,7 +185,7 @@ clust.expand <- function(kin_clust, kin_clust_all, thre = 0.95,
       names(clust_class[[i]])[which(clust_class[[i]] == as.numeric(x))]
     })
     # clusters with 0.95 cut off when clustering all
-    kin_pvclust <- pvclust::pvpick(kin_clust_all[[1]][[i]], alpha = thre,
+    kin_pvclust <- pvclust::pvpick(kin_clust_all[[i]][[1]], alpha = thre,
                                    pv = "au", type = "geq", max.only = T)
     kin_class <- ksrlive::pvclust.clust(kin_pvclust, t(data[[i]]))
     # if any cluster member is not in a cluster when clustering all
@@ -370,5 +370,10 @@ kinclust <- function(data, kin_list, cl = NULL, ...){
   
   outlist <- list(result = result_all, most_stable = mostab_all,
                   clustering = clust_class_all, data = data_save)
-  return(outlist)
+  
+  # reformat into more intuitive object
+  le <- length(outlist[[1]])
+  outlist_ref <- lapply(c(1:le), function(x){lapply(outlist, "[[", x)})
+  names(outlist_ref) <- names(kin_list)[havesub2]
+  return(outlist_ref)
 }
