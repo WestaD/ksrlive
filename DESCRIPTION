@@ -1,18 +1,13 @@
 Package: ksrlive
 Type: Package
-Title: Identify site specific kinase substrate relationships using dynamic data
+Title: Identify Kinase Substrate Relationships Using Dynamic Data
 Version: 1.0
-Date: 2015-05-07
-Authors@R: person("Westa", "Domanova", email = "w.domanova@hotmail.com",
-                  role = c("aut", "cre"))
-Description: Using this package you can combine known site specific 
-    kinase substrate relationships with experimental data and determine active 
-    kinases and their substrates.
+Date: 2015-10-13
+Author: Westa Domanova
+Maintainer: Westa Domanova <w.domanova@gmail.com>
+Description: Using this package you can combine known kinase substrate relationships with experimental data and determine active kinases and their substrates.
 License: GPL-2 | GPL-3
-Depends: R (>= 3.0.0)
-Imports: pvclust
-Suggests: parallel,
-    knitr,
-    ggplot2,
-    reshape2
-VignetteBuilder: knitr
+Depends:
+    R (>= 3.0.0)
+Imports: tightClust
+RoxygenNote: 4.1.1.9001
