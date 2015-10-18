@@ -43,6 +43,7 @@ NULL
 #'                              kinasefamilies = fam,
 #'                              exclusive = TRUE)
 #'@export
+#'@importFrom stats na.omit
 
 KSR.list <- function(df, kinasefamilies = NULL, exclusive = FALSE){
   temp <- split(df[,1], f = df[,2])
@@ -125,6 +126,7 @@ KSR.list <- function(df, kinasefamilies = NULL, exclusive = FALSE){
 #' substrate_profiles_random <- lapply(substrate_profiles, 
 #' function(x){rbind(x, random.data(x, random.seed = 123))})
 #' @export
+#' @importFrom stats runif
 
 ### add random data
 random.data <- function(data, back_data = NULL, n = 50, random.seed = NULL){

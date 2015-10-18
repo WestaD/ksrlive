@@ -9,5 +9,7 @@ Description: Using this package you can combine known kinase substrate relations
 License: GPL-2 | GPL-3
 Depends:
     R (>= 3.0.0)
-Imports: tightClust
+Imports: 
+    tightClust,
+    stats
 RoxygenNote: 4.1.1.9001
